@@ -92,6 +92,19 @@ app.get("/api/chart/:ticker", async (req, res) => {
   }
 });
 
+// ── CONGRESS TRADES ──
+app.get("/api/congress-trades", async (req, res) => {
+  const key = process.env.FINNHUB_KEY || req.headers["x-finnhub-key"];
+  if (!key) return res.status(400).json({ error: "No Finnhub key" });
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/stock/congressional-trading?token=${key}`);
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── HEALTH CHECK ──
 app.get("/", (req, res) => {
   res.json({ status: "PORT.AI server running", time: new Date().toISOString() });
