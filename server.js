@@ -125,3 +125,35 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("PORT.AI server on port " + PORT));
+
+// ── STOCKTWITS PROXY ──
+app.get("/api/stocktwits/:ticker", async (req, res) => {
+  const { ticker } = req.params;
+  try {
+    const r = await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${ticker}.json`, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── FINNHUB FUNDAMENTALS ──
+app.get("/api/fundamentals/:ticker", async (req, res) => {
+  const { ticker } = req.params;
+  const key = process.env.FINNHUB_KEY || req.headers["x-finnhub-key"];
+  if (!key) return res.status(400).json({ error: "No Finnhub key" });
+  try {
+    const [metricRes, profileRes] = await Promise.all([
+      fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${ticker}&metric=all&token=${key}`),
+      fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${key}`)
+    ]);
+    const metrics = await metricRes.json();
+    const profile = await profileRes.json();
+    res.json({ metrics, profile });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
