@@ -92,6 +92,19 @@ app.get("/api/chart/:ticker", async (req, res) => {
   }
 });
 
+// ── REDDIT / APEWISDOM PROXY ──
+app.get("/api/reddit", async (req, res) => {
+  const page = req.query.page || 1;
+  try {
+    const r = await fetch(`https://apewisdom.io/api/v1.0/filter/all-stocks/page/${page}`);
+    if (!r.ok) throw new Error("ApeWisdom error: " + r.status);
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── CONGRESS TRADES ──
 app.get("/api/congress-trades", async (req, res) => {
   const key = process.env.FINNHUB_KEY || req.headers["x-finnhub-key"];
