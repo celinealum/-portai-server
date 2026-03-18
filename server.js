@@ -17,6 +17,31 @@ function t212Auth(key) {
   return key; // old format — send as-is
 }
 
+// T212 internal ticker -> real ticker map
+const T212_TICKERS = {
+  // Tickers from Celine's ISA account
+  "IPOE_US_EQ": "SOFI",   "IPOE": "SOFI",
+  "TWND_US_EQ": "BURU",   "TWND": "BURU",
+  "ALUS_US_EQ": "ASTS",   "ALUS": "ASTS",
+  "VACQ_US_EQ": "RKLB",   "VACQ": "RKLB",
+  "SRFM_US_EQ": "SRFM",   "SRFM": "SRFM",
+  "APLD_US_EQ": "APLD",   "APLD": "APLD",
+  "AGC_US_EQ":  "ASTS",   "AGC":  "ASTS",
+  "YNDX_US_EQ": "YANDX",  "YNDX": "YANDX",
+  "NPA_US_EQ":  "ASTS",   "NPA":  "ASTS",
+  "CNDB_US_EQ": "CNDB",   "CNDB": "CNDB",
+  "GIG_US_EQ":  "GIG",    "GIG":  "GIG",
+  // Standard remaps
+  "FB_US_EQ": "META",    "FB": "META",
+  "GOOG_US_EQ": "GOOGL", "GOOG": "GOOGL",
+};
+
+function fixTicker(t212Ticker) {
+  if (T212_TICKERS[t212Ticker]) return T212_TICKERS[t212Ticker];
+  // Strip _US_EQ, _EQ suffixes
+  return t212Ticker.replace(/_US_EQ$|_EQ$|_US$/, "");
+}
+
 app.get("/api/t212/portfolio", async (req, res) => {
   const key = req.headers["x-t212-key"];
   if (!key) return res.status(400).json({ error: "No T212 key provided" });
@@ -26,7 +51,9 @@ app.get("/api/t212/portfolio", async (req, res) => {
     });
     if (!r.ok) return res.status(r.status).json({ error: "T212 error: " + r.status });
     const data = await r.json();
-    res.json(data);
+    // Fix tickers to use real market tickers
+    const fixed = data.map ? data.map(p => ({...p, ticker: fixTicker(p.ticker)})) : data;
+    res.json(fixed);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
