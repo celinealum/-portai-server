@@ -6,12 +6,23 @@ app.use(cors());
 app.use(express.json());
 
 // ── T212 PROXY ──
+function t212Auth(key) {
+  // New T212 API uses Basic Auth with "apiKeyId:secretKey"
+  // If key contains a colon, it's the new format — encode as Basic Auth
+  // If not, try as Bearer token (old format)
+  if (key.includes(":")) {
+    const encoded = Buffer.from(key).toString("base64");
+    return "Basic " + encoded;
+  }
+  return key; // old format — send as-is
+}
+
 app.get("/api/t212/portfolio", async (req, res) => {
   const key = req.headers["x-t212-key"];
   if (!key) return res.status(400).json({ error: "No T212 key provided" });
   try {
     const r = await fetch("https://live.trading212.com/api/v0/equity/portfolio", {
-      headers: { Authorization: key }
+      headers: { Authorization: t212Auth(key) }
     });
     if (!r.ok) return res.status(r.status).json({ error: "T212 error: " + r.status });
     const data = await r.json();
@@ -26,7 +37,7 @@ app.get("/api/t212/cash", async (req, res) => {
   if (!key) return res.status(400).json({ error: "No T212 key provided" });
   try {
     const r = await fetch("https://live.trading212.com/api/v0/equity/account/cash", {
-      headers: { Authorization: key }
+      headers: { Authorization: t212Auth(key) }
     });
     if (!r.ok) return res.status(r.status).json({ error: "T212 error: " + r.status });
     const data = await r.json();
