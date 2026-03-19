@@ -31,6 +31,9 @@ const T212_TICKERS = {
   "NPA_US_EQ":  "ASTS",   "NPA":  "ASTS",
   "CNDB_US_EQ": "CNDB",   "CNDB": "CNDB",
   "GIG_US_EQ":  "GIG",    "GIG":  "GIG",
+  // Additional SPACs and special cases
+  "GIG_US_EQ":  "GIG",    "GIG":  "GIG",
+  "YNDX_US_EQ": "YNDX",  "YNDX": "YNDX",
   // Standard remaps
   "FB_US_EQ": "META",    "FB": "META",
   "GOOG_US_EQ": "GOOGL", "GOOG": "GOOGL",
@@ -51,8 +54,12 @@ app.get("/api/t212/portfolio", async (req, res) => {
     });
     if (!r.ok) return res.status(r.status).json({ error: "T212 error: " + r.status });
     const data = await r.json();
-    // Fix tickers to use real market tickers
-    const fixed = data.map ? data.map(p => ({...p, ticker: fixTicker(p.ticker)})) : data;
+    // Fix tickers, preserve T212 name, filter out dust positions
+    const fixed = data.map ? data.map(p => ({
+      ...p,
+      ticker: fixTicker(p.ticker),
+      t212Ticker: p.ticker
+    })).filter(p => (p.currentPrice * p.quantity) >= 1) : data;
     res.json(fixed);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -192,6 +199,45 @@ app.get("/api/fundamentals/:ticker", async (req, res) => {
     const profile = await profileRes.json();
     res.json({ metrics, profile });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── T212 PIES ──
+app.get("/api/t212/pies", async (req, res) => {
+  const key = req.headers["x-t212-key"];
+  if (!key) return res.status(400).json({ error: "No T212 key" });
+  try {
+    // Get all pies list
+    const r = await fetch("https://live.trading212.com/api/v0/equity/pies", {
+      headers: { "Authorization": t212Auth(key) }
+    });
+    if (!r.ok) return res.status(r.status).json({ error: `T212 error ${r.status}` });
+    const pies = await r.json();
+
+    // Get details for each pie (holdings + allocation)
+    const detailed = await Promise.all(pies.map(async pie => {
+      try {
+        const dr = await fetch(`https://live.trading212.com/api/v0/equity/pies/${pie.id}`, {
+          headers: { "Authorization": t212Auth(key) }
+        });
+        if (!dr.ok) return pie;
+        const d = await dr.json();
+        // Fix tickers in instruments
+        if (d.instruments) {
+          d.instruments = d.instruments.map(inst => ({
+            ...inst,
+            ticker: fixTicker(inst.ticker || inst.code || ""),
+          }));
+        }
+        return { ...pie, ...d };
+      } catch(e) {
+        return pie;
+      }
+    }));
+
+    res.json(detailed);
+  } catch(e) {
     res.status(500).json({ error: e.message });
   }
 });
